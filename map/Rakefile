@@ -1,0 +1,37 @@
+module Map
+  INPUT_FILE  = 'trace_output/part-00000'
+  INPUT_DIR   = 'map_input'
+  OUTPUT_DIR  = 'map_output'
+  MAPPER      = File.dirname(__FILE__) + '/mapper.rb'
+  REDUCER     = File.dirname(__FILE__) + '/reducer.rb'
+  GEODB       = File.dirname(__FILE__) + '/GeoLiteCity.dat'
+  SPLIT       = 8
+
+  namespace :map do
+    desc 'get IP locations'
+    task :compute => INPUT_DIR do
+      hdfs_rm_rf OUTPUT_DIR
+
+      cmd = <<-EOC
+        #{EXE} jar #{JAR}         \
+          -input #{INPUT_DIR}     \
+          -output #{OUTPUT_DIR}   \
+          -mapper mapper.rb       \
+          -reducer reducer.rb     \
+          -file #{MAPPER}         \
+          -file #{REDUCER}        \
+          -file #{GEODB}
+      EOC
+
+      system cmd
+    end
+
+    file INPUT_DIR do
+      unless hdfs_exists?(INPUT_FILE)
+        Rake::Task['trace:compute'].invoke
+      end
+
+      split_data(hdfs_get(INPUT_FILE).split("\n"), SPLIT, INPUT_DIR)
+    end
+  end
+end

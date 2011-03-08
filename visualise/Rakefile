@@ -1,0 +1,105 @@
+require 'rubygems'
+require 'json'
+
+module Visualise
+  INPUT_FILE = Map::OUTPUT_DIR + '/part-00000'
+
+  namespace :visualise do
+    desc 'grab data from hdfs'
+    task :data do
+      unless hdfs_exists?(INPUT_FILE)
+        Rake::Task['map:compute'].invoke
+      end
+    end
+
+    html = <<-EOH
+      <html>
+        <head>
+          <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+
+          <style type="text/css">
+            html { height: 100% }
+            body { height: 100%; margin: 0px; padding: 0px }
+            #map_canvas { height: 100% }
+          </style>
+
+          <script type="text/javascript"
+              src="http://maps.google.com/maps/api/js?sensor=false">
+          </script>
+
+          <script type="text/javascript">
+            $ = {}
+
+            function initialize() {
+              var myLatLng = new google.maps.LatLng(0, -180)
+              var myOptions = {
+                zoom: 3,
+                center: myLatLng,
+                mapTypeId: google.maps.MapTypeId.TERRAIN
+              }
+
+              $.map = new google.maps.Map(document.getElementById("map_canvas"), myOptions)
+
+              $.max = %MAX%
+              var pipes = %PIPES%
+
+              for (i = 0; i < pipes.length; i++) {
+                console.log(pipes[i])
+                addLine(pipes[i])
+              }
+            }
+
+            function addLine(pipe) {
+              var coords = [
+                new google.maps.LatLng(pipe.src.lat, pipe.src.long),
+                new google.maps.LatLng(pipe.dst.lat, pipe.dst.long),
+              ]
+
+              var path = new google.maps.Polyline({
+                path: coords,
+                strokeColor: "#FF0000",
+                strokeOpacity: 1.0,
+                strokeWeight: 0.5 + 5 * (pipe.amt / $.max)
+              })
+
+              path.setMap($.map)
+            }
+          </script>
+
+        </head>
+
+        <body onload="initialize()">
+          <div id="map_canvas" style="width:100%; height:100%"></div>
+        </body>
+
+      </html>
+    EOH
+
+    desc 'create map'
+    task :map do
+      data = hdfs_get(INPUT_FILE)
+
+      pipes = []
+      data.split("\n").each do |line|
+        src, src_lat, src_long, dst, dst_lat, dst_long, amt = line.split("\t")
+        if src_lat != dst_lat || src_long != dst_long
+          pipes << {
+            :src => { :lat => src_lat.to_f, :long => src_long.to_f },
+            :dst => { :lat => dst_lat.to_f, :long => dst_long.to_f },
+            :amt => amt.to_i
+          }
+        end
+
+      end
+
+      max = pipes.map { |pipe|
+        pipe[:amt]
+      }.max
+
+      File.open('map.html', 'w') do |f|
+        f << html.sub(/%PIPES%/, pipes.to_json).
+                  sub(/%MAX%/, max.to_s)
+      end
+    end
+  end
+end

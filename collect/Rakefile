@@ -1,0 +1,50 @@
+require 'tempfile'
+
+module Collect
+  DUMP_DIR    = File.dirname(__FILE__) + '/captures'
+  CAPTURES_DIR= 'collect_captures'
+  INPUT_DIR   = 'collect_input'
+  OUTPUT_DIR  = 'collect_output'
+  MAPPER      = File.dirname(__FILE__) + '/mapper.rb'
+  REDUCER     = File.dirname(__FILE__) + '/reducer.rb'
+  CAP_ROTATE  = 3600
+  SPLIT       = 8
+
+  namespace :collect do
+    desc 'start dumping packets'
+    task :dump do
+      `sudo tcpdump -i #{IF} -w "#{DUMP_DIR}"/capture.%s -G #{CAP_ROTATE}`
+    end
+
+    desc 'extract IP and data size from dumps'
+    task :compute => :data do
+      #hdfs_rm_rf CAPTURES_DIR
+      #hdfs_put DUMP_DIR, CAPTURES_DIR
+
+      hdfs_rm_rf OUTPUT_DIR
+
+      split_data(Dir[File.join(DUMP_DIR, '*')], SPLIT, INPUT_DIR) do |dump|
+        File.expand_path(dump)
+      end
+
+      cmd = <<-EOC
+        #{EXE} jar #{JAR}         \
+          -input #{INPUT_DIR}     \
+          -output #{OUTPUT_DIR}   \
+          -mapper mapper.rb       \
+          -reducer reducer.rb     \
+          -file #{MAPPER}         \
+          -file #{REDUCER}        
+      EOC
+
+      system cmd
+    end
+
+    task :data do
+      if Dir[File.join(DUMP_DIR, '*')].length == 0
+        puts "you must capture some data first: rake collect:dump"
+        exit 1
+      end
+    end
+  end
+end

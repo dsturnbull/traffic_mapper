@@ -1,0 +1,8 @@
+Collects pcap data and uses hadoop to traceroute to each unique remote host,
+then maps them in the generated map.html file.
+
+Edit Rakefile to specify HADOOP_HOME and the network interface you want.
+
+Once you've captured some data, you can simply run
+	`rake visualise:map`
+

@@ -1,0 +1,35 @@
+module Trace
+  INPUT_FILE  = 'collect_output/part-00000'
+  INPUT_DIR   = 'trace_input'
+  OUTPUT_DIR  = 'trace_output'
+  MAPPER      = File.dirname(__FILE__) + '/mapper.rb'
+  REDUCER     = File.dirname(__FILE__) + '/reducer.rb'
+  SPLIT       = 8
+
+  namespace :trace do
+    desc 'trace to all IPs'
+    task :compute => INPUT_DIR do
+      hdfs_rm_rf OUTPUT_DIR
+
+      cmd = <<-EOC
+        #{EXE} jar #{JAR}         \
+          -input #{INPUT_DIR}     \
+          -output #{OUTPUT_DIR}   \
+          -mapper mapper.rb       \
+          -reducer reducer.rb     \
+          -file #{MAPPER}         \
+          -file #{REDUCER}
+      EOC
+
+      system cmd
+    end
+
+    file INPUT_DIR do
+      unless hdfs_exists?(INPUT_FILE)
+        Rake::Task['collect:compute'].invoke
+      end
+
+      split_data(hdfs_get(INPUT_FILE).split("\n"), SPLIT, INPUT_DIR)
+    end
+  end
+end

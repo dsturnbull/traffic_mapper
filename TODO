@@ -1,0 +1,15 @@
+collect:
+	find out origin
+	use origin to differentiate between incoming and outgoing
+	ip is always the remote one though
+
+trace:
+	trace to ip
+	spit out each intervening pair with data size
+
+map:
+	get location of each end of the pair
+	return empties for bogons
+
+visualise:
+	plot each pipe on map
